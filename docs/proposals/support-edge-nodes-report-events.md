@@ -1,4 +1,15 @@
-# Kubeedge: Support edge nodes report events
+---
+title: Support edge nodes report events
+authors:
+
+- "@llmmqq8023"
+  
+  approvers: 
+  creation-date: 2024-07-12
+  last-updated: 2024-07-17
+  status: implementable
+
+---
 
 ## Introduction
 
