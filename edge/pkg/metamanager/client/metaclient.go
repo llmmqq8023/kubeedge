@@ -21,6 +21,7 @@ type CoreInterface interface {
 	PodsGetter
 	PodStatusGetter
 	ConfigMapsGetter
+	EventsGetter
 	NodesGetter
 	NodeStatusGetter
 	SecretsGetter
@@ -30,7 +31,6 @@ type CoreInterface interface {
 	PersistentVolumeClaimsGetter
 	VolumeAttachmentsGetter
 	LeasesGetter
-	CertificateSigningRequestsGetter
 }
 
 type metaClient struct {
@@ -43,6 +43,10 @@ func (m *metaClient) Pods(namespace string) PodsInterface {
 
 func (m *metaClient) ConfigMaps(namespace string) ConfigMapsInterface {
 	return newConfigMaps(namespace, m.send)
+}
+
+func (m *metaClient) Events(namespace string) EventsInterface {
+	return newEvents(namespace, m.send)
 }
 
 func (m *metaClient) Nodes(namespace string) NodesInterface {
@@ -86,10 +90,6 @@ func (m *metaClient) VolumeAttachments(namespace string) VolumeAttachmentsInterf
 
 func (m *metaClient) Leases(namespace string) LeasesInterface {
 	return newLeases(namespace, m.send)
-}
-
-func (m *metaClient) CertificateSigningRequests() CertificateSigningRequestInterface {
-	return newCertificateSigningRequests(m.send)
 }
 
 // New creates new metaclient

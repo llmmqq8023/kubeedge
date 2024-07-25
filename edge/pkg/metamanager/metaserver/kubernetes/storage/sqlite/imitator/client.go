@@ -12,7 +12,7 @@ import (
 
 	"github.com/kubeedge/beehive/pkg/core/model"
 	"github.com/kubeedge/kubeedge/edge/pkg/common/dbm"
-	"github.com/kubeedge/kubeedge/edge/pkg/metamanager/dao/v2"
+	v2 "github.com/kubeedge/kubeedge/edge/pkg/metamanager/dao/v2"
 )
 
 // DefaultV2Client is the only one client. Because of v2Client
@@ -58,7 +58,7 @@ func newV2Client() Client {
 func StorageInit() {
 	m := new(v2.MetaV2)
 	// get the most recent record as the init resource version
-	_, err := dbm.DBAccess.QueryTable(v2.NewMetaTableName).OrderBy("-" + v2.RV).Limit(1).All(m)
+	_, err := dbm.DBAccess.QueryTable(v2.NewMetaTableName).Filter(v2.NODE, dbm.NodeName).OrderBy("-" + v2.RV).Limit(1).All(m)
 	utilruntime.Must(err)
 	DefaultV2Client.SetRevision(m.ResourceVersion)
 }
