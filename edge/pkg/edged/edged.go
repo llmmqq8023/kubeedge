@@ -60,7 +60,6 @@ import (
 	metaclient "github.com/kubeedge/kubeedge/edge/pkg/metamanager/client"
 	"github.com/kubeedge/kubeedge/edge/pkg/metamanager/dao"
 	"github.com/kubeedge/kubeedge/pkg/apis/componentconfig/edgecore/v1alpha2"
-	kefeatures "github.com/kubeedge/kubeedge/pkg/features"
 	"github.com/kubeedge/kubeedge/pkg/version"
 )
 
@@ -122,47 +121,22 @@ func (e *edged) Enable() bool {
 func (e *edged) Start() {
 	klog.Info("Starting edged...")
 
-	// FIXME: cleanup this code when the static pod mqtt broker no longer needs to be compatible
 	// edged saves the data of mqtt container in sqlite3 and starts it. This is a temporary workaround and will be modified in v1.15.
 	withMqtt, err := strconv.ParseBool(os.Getenv(constants.DeployMqttContainerEnv))
 	if err == nil && withMqtt {
-		if err := dao.SaveMQTTMeta(e.nodeName); err != nil {
+		err := dao.SaveMQTTMeta(e.nodeName)
+		if err != nil {
 			klog.ErrorS(err, "Start mqtt container failed")
-		}
-	} else {
-		// Delete a not exists key does not return an error
-		if err := dao.DeleteMetaByKey(fmt.Sprintf("default/pod/%s", constants.DefaultMosquittoContainerName)); err != nil {
-			klog.ErrorS(err, "delete mqtt container failed")
 		}
 	}
 
-	kubeletErrChan := make(chan error, 1)
 	go func() {
 		err := DefaultRunLiteKubelet(e.context, e.KubeletServer, e.KubeletDeps, e.FeatureGate)
 		if err != nil {
-			if !kefeatures.DefaultFeatureGate.Enabled(kefeatures.ModuleRestart) {
-				klog.Errorf("Start edged failed, err: %v", err)
-				os.Exit(1)
-			}
-			kubeletErrChan <- err
+			klog.Errorf("Start edged failed, err: %v", err)
+			os.Exit(1)
 		}
 	}()
-
-	// block until kubelet is ready to sync pods
-	startWaiter := time.NewTimer(10 * time.Second)
-	defer startWaiter.Stop()
-
-	select {
-	case <-beehiveContext.Done():
-		klog.Warning("Stop sync pod")
-		return
-	case err := <-kubeletErrChan:
-		klog.Errorf("Failed to start edged, err: %v", err)
-		return
-	case <-startWaiter.C:
-		klog.Info("Start sync pod")
-	}
-
 	e.syncPod(e.KubeletDeps.PodConfig)
 }
 
@@ -178,7 +152,6 @@ func newEdged(enable bool, nodeName, namespace string) (*edged, error) {
 		}, nil
 	}
 
-	// initial kubelet config and flag
 	var kubeletConfig kubeletconfig.KubeletConfiguration
 	var kubeletFlags kubeletoptions.KubeletFlags
 	err = edgedconfig.ConvertEdgedKubeletConfigurationToConfigKubeletConfiguration(edgedconfig.Config.TailoredKubeletConfig, &kubeletConfig, nil)
@@ -187,19 +160,17 @@ func newEdged(enable bool, nodeName, namespace string) (*edged, error) {
 		return nil, fmt.Errorf("failed to construct kubelet configuration")
 	}
 	edgedconfig.ConvertConfigEdgedFlagToConfigKubeletFlag(&edgedconfig.Config.TailoredKubeletFlag, &kubeletFlags)
-
-	// set feature gates from initial flags-based config
-	if err := utilfeature.DefaultMutableFeatureGate.SetFromMap(kubeletConfig.FeatureGates); err != nil {
-		return nil, fmt.Errorf("failed to set feature gates from initial flags-based config: %w", err)
+	// Set Kubelet RegisterNode Parameter in KubeletConfiguration.
+	// The parameter `registerNode` has been migrated to Kubelet Configuration.
+	// `registerNode` in KubeletFlag will be retained for next version(1.13), and removed in 1.14 and later.
+	if !edgedconfig.Config.RegisterNode {
+		kubeletConfig.RegisterNode = false
 	}
-
-	// construct a KubeletServer from kubeletFlags and kubeletConfig
 	kubeletServer := kubeletoptions.KubeletServer{
 		KubeletFlags:         kubeletFlags,
 		KubeletConfiguration: kubeletConfig,
 	}
 
-	// make directory for static pod
 	if kubeletConfig.StaticPodPath != "" {
 		if err := os.MkdirAll(kubeletConfig.StaticPodPath, os.ModePerm); err != nil {
 			return nil, fmt.Errorf("create %s static pod path failed: %v", kubeletConfig.StaticPodPath, err)
@@ -208,9 +179,7 @@ func newEdged(enable bool, nodeName, namespace string) (*edged, error) {
 		klog.ErrorS(err, "static pod path is nil!")
 	}
 
-	// set edged version
 	nodestatus.KubeletVersion = fmt.Sprintf("%s-kubeedge-%s", constants.CurrentSupportK8sVersion, version.Get())
-
 	// use kubeletServer to construct the default KubeletDeps
 	kubeletDeps, err := DefaultKubeletDeps(&kubeletServer, utilfeature.DefaultFeatureGate)
 	if err != nil {
@@ -236,17 +205,18 @@ func newEdged(enable bool, nodeName, namespace string) (*edged, error) {
 }
 
 func (e *edged) syncPod(podCfg *config.PodConfig) {
+	time.Sleep(10 * time.Second)
+
 	//when starting, send msg to metamanager once to get existing pods
 	info := model.NewMessage("").BuildRouter(e.Name(), e.Group(), e.namespace+"/"+model.ResourceTypePod,
 		model.QueryOperation)
 	beehiveContext.Send(modules.MetaManagerModuleName, *info)
 	// rawUpdateChan receives the update events from metamanager or edgecontroller
 	rawUpdateChan := podCfg.Channel(beehiveContext.GetContext(), kubelettypes.ApiserverSource)
-
 	for {
 		select {
 		case <-beehiveContext.Done():
-			klog.Warning("Stop sync pod")
+			klog.Warning("Sync pod stop")
 			return
 		default:
 		}
@@ -255,6 +225,7 @@ func (e *edged) syncPod(podCfg *config.PodConfig) {
 			klog.Errorf("failed to get pod: %v", err)
 			continue
 		}
+		klog.V(5).Infof("Get resource(%s) message from source(%s) with operation(%s)", result.GetResource(), result.GetSource(), result.GetOperation())
 
 		_, resType, resID, err := util.ParseResourceEdge(result.GetResource(), result.GetOperation())
 		if err != nil {
@@ -313,7 +284,8 @@ func MakeKubeClientBridge(kubeletDeps *kubelet.Dependencies) {
 	client := kubebridge.NewSimpleClientset(metaclient.New())
 
 	kubeletDeps.KubeClient = client
-	kubeletDeps.EventClient = nil
+	kubeletDeps.EventClient = client.CoreV1() // nil
+	klog.Infof("EventClient assigned. ")
 	kubeletDeps.HeartbeatClient = client
 }
 

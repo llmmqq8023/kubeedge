@@ -8,6 +8,7 @@ import (
 	edgeapi "github.com/kubeedge/kubeedge/common/types"
 	"github.com/kubeedge/kubeedge/edge/pkg/common/message"
 	commodule "github.com/kubeedge/kubeedge/edge/pkg/common/modules"
+	metamanagerconfig "github.com/kubeedge/kubeedge/edge/pkg/metamanager/config"
 )
 
 // PodStatusGetter is interface to get pod status
@@ -35,12 +36,13 @@ func newPodStatus(namespace string, s SendInterface) *podStatus {
 	}
 }
 
-func (c *podStatus) Create(*edgeapi.PodStatusRequest) (*edgeapi.PodStatusRequest, error) {
+func (c *podStatus) Create(ps *edgeapi.PodStatusRequest) (*edgeapi.PodStatusRequest, error) {
 	return nil, nil
 }
 
 // deprecated
 func (c *podStatus) Update(rsName string, ps edgeapi.PodStatusRequest) error {
+	ps.Node = metamanagerconfig.Config.NodeId
 	podStatusMsg := message.BuildMsg(commodule.MetaGroup, "", commodule.EdgedModuleName, c.namespace+"/"+model.ResourceTypePodStatus+"/"+rsName, model.UpdateOperation, ps)
 	resp, err := c.send.SendSync(podStatusMsg)
 	if err != nil {
@@ -54,10 +56,10 @@ func (c *podStatus) Update(rsName string, ps edgeapi.PodStatusRequest) error {
 	return nil
 }
 
-func (c *podStatus) Delete(string) error {
+func (c *podStatus) Delete(name string) error {
 	return nil
 }
 
-func (c *podStatus) Get(string) (*edgeapi.PodStatusRequest, error) {
+func (c *podStatus) Get(name string) (*edgeapi.PodStatusRequest, error) {
 	return nil, nil
 }

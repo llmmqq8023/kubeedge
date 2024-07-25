@@ -3,6 +3,7 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
@@ -145,7 +146,7 @@ func getTokenRemotely(resource string, tr *authenticationv1.TokenRequest, c *ser
 	}
 
 	if msg.GetOperation() == model.ResponseOperation && msg.GetSource() == modules.MetaManagerModuleName {
-		return handleServiceAccountTokenFromMetaDB(content)
+		return handleServiceAccountTokenFromMetaDB(content, tr)
 	}
 	return handleServiceAccountTokenFromMetaManager(content)
 }
@@ -159,19 +160,29 @@ func (c *serviceAccountToken) GetServiceAccountToken(namespace string, name stri
 	return tokenReq, nil
 }
 
-func handleServiceAccountTokenFromMetaDB(content []byte) (*authenticationv1.TokenRequest, error) {
+func handleServiceAccountTokenFromMetaDB(content []byte, tr *authenticationv1.TokenRequest) (*authenticationv1.TokenRequest, error) {
 	var lists []string
 	err := json.Unmarshal(content, &lists)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal message to serviceaccount list from db failed, err: %v", err)
 	}
+	var filterLists []string
+	if tr.Spec.BoundObjectRef != nil {
+		for _, v := range lists {
+			if strings.Contains(v, string(tr.Spec.BoundObjectRef.UID)) {
+				filterLists = append(filterLists, v)
+			}
+		}
+	} else {
+		filterLists = lists
+	}
 
-	if len(lists) != 1 {
-		return nil, fmt.Errorf("serviceaccount length from meta db is %d", len(lists))
+	if len(filterLists) != 1 {
+		return nil, fmt.Errorf("serviceaccount length from meta db is %d", len(filterLists))
 	}
 
 	var tokenRequest authenticationv1.TokenRequest
-	err = json.Unmarshal([]byte(lists[0]), &tokenRequest)
+	err = json.Unmarshal([]byte(filterLists[0]), &tokenRequest)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal message to serviceaccount token from db failed, err: %v", err)
 	}
