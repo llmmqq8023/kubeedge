@@ -1,11 +1,10 @@
 package v2
 
 import (
-	"github.com/beego/beego/orm"
+	"github.com/beego/beego/v2/client/orm"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/kubeedge/kubeedge/edge/pkg/common/dbm"
-	metaManagerConfig "github.com/kubeedge/kubeedge/edge/pkg/metamanager/config"
 )
 
 // constant metatable name reference
@@ -13,13 +12,11 @@ const (
 	NewMetaTableName = "meta_v2"
 
 	// column name
-	UUKEY = "uukey"
-	NODE  = "node_name"
-	KEY   = "Key"
-	GVR   = "GroupVersionResource"
-	NS    = "Namespace"
-	NAME  = "Name"
-	RV    = "ResourceVersion"
+	KEY  = "Key"
+	GVR  = "GroupVersionResource"
+	NS   = "Namespace"
+	NAME = "Name"
+	RV   = "ResourceVersion"
 
 	NullNamespace = "null"
 	GroupCore     = "core"
@@ -28,8 +25,6 @@ const (
 
 // MetaV2 record k8s api object
 type MetaV2 struct {
-	UUKey string `orm:"column(uukey); size(325);pk"`
-	Node  string `orm:"column(node_name); size(64)"`
 	// Key is the primary key of a line record, format like k8s obj key in etcd:
 	// /Group/Version/Resources/Namespace/Name
 	//0/1   /2 /3   /4           /5
@@ -37,7 +32,7 @@ type MetaV2 struct {
 	// /core/v1/pods/{namespaces} 											List obj
 	// /extensions/v1beta1/ingresses/{namespaces}/{name}				 	normal obj
 	// /storage.k8s.io/v1beta1/csidrivers/null/{name} 					 	cluster scope obj
-	Key string `orm:"column(key); size(256)"`
+	Key string `orm:"column(key); size(256); pk"`
 	// GroupVersionResource are set buy gvr.String() like "/v1, Resource=endpoints"
 	GroupVersionResource string `orm:"column(groupversionresource); size(256);"`
 	// Namespace is the namespace of an api object, and set as metadata.namespace
@@ -60,22 +55,22 @@ func RawMetaByGVRNN(gvr schema.GroupVersionResource, namespace string, name stri
 	//klog.Infof("cond:%+v",cond)
 	//_,err = dbm.DBAccess.QueryTable(NewMetaTableName).SetCond(cond).All(objs)
 	if gvr.Empty() {
-		_, err = dbm.DBAccess.QueryTable(NewMetaTableName).Filter(NODE, metaManagerConfig.Config.NodeId).All(objs)
+		_, err = dbm.DBAccess.QueryTable(NewMetaTableName).All(objs)
 	} else {
 		switch namespace {
 		case NullNamespace, "":
 			switch name {
 			case NullName, "":
-				_, err = dbm.DBAccess.QueryTable(NewMetaTableName).Filter(NODE, metaManagerConfig.Config.NodeId).Filter(GVR, gvr.String()).All(objs)
+				_, err = dbm.DBAccess.QueryTable(NewMetaTableName).Filter(GVR, gvr.String()).All(objs)
 			default:
-				_, err = dbm.DBAccess.QueryTable(NewMetaTableName).Filter(NODE, metaManagerConfig.Config.NodeId).Filter(GVR, gvr.String()).Filter(NAME, name).All(objs)
+				_, err = dbm.DBAccess.QueryTable(NewMetaTableName).Filter(GVR, gvr.String()).Filter(NAME, name).All(objs)
 			}
 		default:
 			switch name {
 			case NullName, "":
-				_, err = dbm.DBAccess.QueryTable(NewMetaTableName).Filter(NODE, metaManagerConfig.Config.NodeId).Filter(GVR, gvr.String()).Filter(NS, namespace).All(objs)
+				_, err = dbm.DBAccess.QueryTable(NewMetaTableName).Filter(GVR, gvr.String()).Filter(NS, namespace).All(objs)
 			default:
-				_, err = dbm.DBAccess.QueryTable(NewMetaTableName).Filter(NODE, metaManagerConfig.Config.NodeId).Filter(GVR, gvr.String()).Filter(NS, namespace).Filter(NAME, name).All(objs)
+				_, err = dbm.DBAccess.QueryTable(NewMetaTableName).Filter(GVR, gvr.String()).Filter(NS, namespace).Filter(NAME, name).All(objs)
 			}
 		}
 	}

@@ -59,7 +59,7 @@ func (s *imitator) Inject(msg model.Message) {
 }
 
 // TODO: filter out insert or update req that the obj's rev is smaller than the stored
-func (s *imitator) InsertOrUpdateObj(ctx context.Context, obj runtime.Object) error {
+func (s *imitator) InsertOrUpdateObj(_ context.Context, obj runtime.Object) error {
 	key, err := metaserver.KeyFuncObj(obj)
 	if err != nil {
 		return err
@@ -76,8 +76,6 @@ func (s *imitator) InsertOrUpdateObj(ctx context.Context, obj runtime.Object) er
 	}
 	objRv, err := s.versioner.ObjectResourceVersion(obj)
 	m := v2.MetaV2{
-		UUKey:                dbm.NodeName + "/" + key,
-		Node:                 dbm.NodeName,
 		Key:                  key,
 		GroupVersionResource: gvr.String(),
 		Namespace:            ns,
@@ -91,16 +89,14 @@ func (s *imitator) InsertOrUpdateObj(ctx context.Context, obj runtime.Object) er
 func (s *imitator) insertOrReplaceMetaV2(m v2.MetaV2, objRv uint64) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-
-	uukey := dbm.NodeName + "/" + m.Key
-	_, err := dbm.DBAccess.Raw("INSERT OR REPLACE INTO meta_v2 (uukey, node_name, key, groupversionresource, namespace,name,resourceversion,value) VALUES (?,?,?,?,?,?,?,?)", uukey, dbm.NodeName, m.Key, m.GroupVersionResource, m.Namespace, m.Name, m.ResourceVersion, m.Value).Exec()
+	_, err := dbm.DBAccess.Raw("INSERT OR REPLACE INTO meta_v2 (key, groupversionresource, namespace,name,resourceversion,value) VALUES (?,?,?,?,?,?)", m.Key, m.GroupVersionResource, m.Namespace, m.Name, m.ResourceVersion, m.Value).Exec()
 	var maxRetryTimes = 3
 	for i := 1; err != nil; i++ {
 		klog.Errorf("failed to access database:%v", err)
 		if i == maxRetryTimes {
 			return fmt.Errorf("failed to access database after %v times try", i)
 		}
-		_, err = dbm.DBAccess.Raw("INSERT OR REPLACE INTO meta_v2 (uukey, node_name, key, groupversionresource, namespace,name,resourceversion,value) VALUES (?,?,?,?,?,?,?,?)", uukey, dbm.NodeName, m.Key, m.GroupVersionResource, m.Namespace, m.Name, m.ResourceVersion, m.Value).Exec()
+		_, err = dbm.DBAccess.Raw("INSERT OR REPLACE INTO meta_v2 (key, groupversionresource, namespace,name,resourceversion,value) VALUES (?,?,?,?,?,?)", m.Key, m.GroupVersionResource, m.Namespace, m.Name, m.ResourceVersion, m.Value).Exec()
 	}
 	if objRv > s.GetRevision() {
 		s.SetRevision(objRv)
@@ -109,20 +105,19 @@ func (s *imitator) insertOrReplaceMetaV2(m v2.MetaV2, objRv uint64) error {
 	return nil
 }
 
-func (s *imitator) InsertOrUpdatePassThroughObj(ctx context.Context, obj []byte, key string) error {
+func (s *imitator) InsertOrUpdatePassThroughObj(_ context.Context, obj []byte, key string) error {
 	m := v2.MetaV2{
-		UUKey: dbm.NodeName + "/" + key,
 		Key:   key,
 		Value: string(obj),
 	}
 	return s.insertOrReplaceMetaV2(m, 0)
 }
 
-func (s *imitator) GetPassThroughObj(ctx context.Context, key string) ([]byte, error) {
+func (s *imitator) GetPassThroughObj(_ context.Context, key string) ([]byte, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	results := new([]v2.MetaV2)
-	_, err := dbm.DBAccess.QueryTable(v2.NewMetaTableName).Filter(v2.NODE, dbm.NodeName).Filter(v2.KEY, key).All(results)
+	_, err := dbm.DBAccess.QueryTable(v2.NewMetaTableName).Filter(v2.KEY, key).All(results)
 	if err != nil {
 		return nil, err
 	}
@@ -136,11 +131,9 @@ func (s *imitator) GetPassThroughObj(ctx context.Context, key string) ([]byte, e
 	}
 }
 
-func (s *imitator) Delete(ctx context.Context, key string) error {
+func (s *imitator) Delete(_ context.Context, key string) error {
 	m := v2.MetaV2{
-		UUKey: dbm.NodeName + "/" + key,
-		Key:   key,
-		Node:  dbm.NodeName,
+		Key: key,
 	}
 	s.lock.Lock()
 	_, err := dbm.DBAccess.Delete(&m)
@@ -150,7 +143,7 @@ func (s *imitator) Delete(ctx context.Context, key string) error {
 	s.lock.Unlock()
 	return nil
 }
-func (s *imitator) DeleteObj(ctx context.Context, obj runtime.Object) error {
+func (s *imitator) DeleteObj(_ context.Context, obj runtime.Object) error {
 	key, err := metaserver.KeyFuncObj(obj)
 	if err != nil {
 		return err
@@ -158,7 +151,7 @@ func (s *imitator) DeleteObj(ctx context.Context, obj runtime.Object) error {
 	err = s.Delete(context.TODO(), key)
 	return err
 }
-func (s *imitator) Get(ctx context.Context, key string) (Resp, error) {
+func (s *imitator) Get(_ context.Context, key string) (Resp, error) {
 	var resp Resp
 	s.lock.RLock()
 	results, err := v2.RawMetaByGVRNN(metaserver.ParseKey(key))
@@ -175,7 +168,7 @@ func (s *imitator) Get(ctx context.Context, key string) (Resp, error) {
 		return Resp{}, fmt.Errorf("the server could not find the requested resource")
 	}
 }
-func (s *imitator) List(ctx context.Context, key string) (Resp, error) {
+func (s *imitator) List(_ context.Context, key string) (Resp, error) {
 	gvr, ns, name := metaserver.ParseKey(key)
 	//if name != NullName {
 	//	return Resp{}, fmt.Errorf("dao client list must not have resource name")

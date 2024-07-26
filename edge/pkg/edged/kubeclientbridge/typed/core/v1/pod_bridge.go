@@ -28,7 +28,6 @@ import (
 	fakecorev1 "k8s.io/client-go/kubernetes/typed/core/v1/fake"
 
 	"github.com/kubeedge/kubeedge/edge/pkg/metamanager/client"
-	"k8s.io/klog/v2"
 )
 
 type PodsBridge struct {
@@ -37,19 +36,18 @@ type PodsBridge struct {
 	MetaClient client.CoreInterface
 }
 
-func (c *PodsBridge) Get(ctx context.Context, name string, options metav1.GetOptions) (result *corev1.Pod, err error) {
+func (c *PodsBridge) Get(_ context.Context, name string, _ metav1.GetOptions) (result *corev1.Pod, err error) {
 	return c.MetaClient.Pods(c.ns).Get(name)
 }
 
-func (c *PodsBridge) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *corev1.Pod, err error) {
-	klog.V(3).Infof("patching message: %v", string(data))
+func (c *PodsBridge) Patch(_ context.Context, name string, _ types.PatchType, data []byte, _ metav1.PatchOptions, _ ...string) (result *corev1.Pod, err error) {
 	return c.MetaClient.Pods(c.ns).Patch(name, data)
 }
 
-func (c *PodsBridge) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
+func (c *PodsBridge) Delete(_ context.Context, name string, opts metav1.DeleteOptions) error {
 	return c.MetaClient.Pods(c.ns).Delete(name, opts)
 }
 
-func (c *PodsBridge) Create(ctx context.Context, pod *corev1.Pod, opts metav1.CreateOptions) (result *corev1.Pod, err error) {
+func (c *PodsBridge) Create(_ context.Context, pod *corev1.Pod, _ metav1.CreateOptions) (result *corev1.Pod, err error) {
 	return c.MetaClient.Pods(c.ns).Create(pod)
 }
