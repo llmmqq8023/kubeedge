@@ -329,6 +329,9 @@ func (m *metaManager) processQuery(message model.Message) {
 func (m *metaManager) processRemote(message model.Message) {
 	go func() {
 		// TODO: retry
+		if message.GetType() == model.ResourceTypeEvent {
+			klog.Infof("8888")
+		}
 		originalID := message.GetID()
 		message.UpdateID()
 		resp, err := beehiveContext.SendSync(

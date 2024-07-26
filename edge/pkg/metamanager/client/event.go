@@ -1,6 +1,10 @@
 package client
 
 import (
+	"fmt"
+	"github.com/kubeedge/beehive/pkg/core/model"
+	"github.com/kubeedge/kubeedge/edge/pkg/common/message"
+	"github.com/kubeedge/kubeedge/edge/pkg/common/modules"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -68,17 +72,51 @@ func (e *events) Apply(event *appcorev1.EventApplyConfiguration, opts metav1.App
 }
 
 func (e *events) CreateWithEventNamespace(event *corev1.Event) (*corev1.Event, error) {
-	// TODO 建立message，sync方法发送到edgehub
 	klog.Infof("666666: Create event with ns: %+v", event)
+	resource := fmt.Sprintf("%s/%s/%s", e.namespace, model.ResourceTypeEvent, event.Name)
+	eventMsg := message.BuildMsg(modules.MetaGroup, "", modules.EdgedModuleName, resource, model.InsertOperation, event)
+	e.send.Send(eventMsg)
+	//if err != nil {
+	//	return nil, fmt.Errorf("create event failed, err: %v", err)
+	//}
+	//
+	//_, err = resp.GetContentData()
+	//if err != nil {
+	//	return nil, fmt.Errorf("parse event failed, err: %v", err)
+	//}
 	return event, nil
 }
 
 func (e *events) UpdateWithEventNamespace(event *corev1.Event) (*corev1.Event, error) {
 	klog.Infof("666666: Update event with ns: %+v", event)
+	resource := fmt.Sprintf("%s/%s/%s", e.namespace, model.ResourceTypeEvent, event.Name)
+	eventMsg := message.BuildMsg(modules.MetaGroup, "", modules.EdgedModuleName, resource, model.UpdateOperation, event)
+	e.send.Send(eventMsg)
+	//if err != nil {
+	//	return nil, fmt.Errorf("update event failed, err: %v", err)
+	//}
+	//
+	//_, err = resp.GetContentData()
+	//if err != nil {
+	//	return nil, fmt.Errorf("parse event failed, err: %v", err)
+	//}
 	return event, nil
 }
 
 func (e *events) PatchWithEventNamespace(event *corev1.Event, data []byte) (*corev1.Event, error) {
 	klog.Infof("666666: Patch event with ns: %+v and data: %s", event, string(data))
+	resource := fmt.Sprintf("%s/%s/%s", e.namespace, model.ResourceTypeEvent, event.Name)
+	eventMsg := message.BuildMsg(modules.MetaGroup, "", modules.EdgedModuleName, resource, model.PatchOperation, string(data))
+	e.send.Send(eventMsg)
+	//if err != nil {
+	//	return nil, fmt.Errorf("patch event failed, err: %v", err)
+	//}
+	//
+	//_, err = resp.GetContentData()
+	//if err != nil {
+	//	return nil, fmt.Errorf("parse event failed, err: %v", err)
+	//}
 	return event, nil
 }
+
+// Todo 改3个函数，看edgehub
