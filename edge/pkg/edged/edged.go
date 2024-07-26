@@ -313,7 +313,8 @@ func MakeKubeClientBridge(kubeletDeps *kubelet.Dependencies) {
 	client := kubebridge.NewSimpleClientset(metaclient.New())
 
 	kubeletDeps.KubeClient = client
-	kubeletDeps.EventClient = nil
+	kubeletDeps.EventClient = client.CoreV1() // nil
+	klog.Infof("EventClient assigned. ")
 	kubeletDeps.HeartbeatClient = client
 }
 
