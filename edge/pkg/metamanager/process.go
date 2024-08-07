@@ -396,10 +396,12 @@ func (m *metaManager) processVolume(message model.Message) {
 
 func (m *metaManager) process(message model.Message) {
 	operation := message.GetOperation()
-	if message.GetType() == model.ResourceTypeEvent {
-		klog.Infof("8888 %+v", message)
+	if _, resType, _ := parseResource(&message); resType == model.ResourceTypeEvent {
+		klog.Infof("An event is captured, send to edgehub")
+		sendToCloud(&message)
 		return
 	}
+
 	switch operation {
 	case model.InsertOperation:
 		m.processInsert(message)

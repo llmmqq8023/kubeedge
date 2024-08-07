@@ -30,23 +30,11 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
+	"k8s.io/klog/v2"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
-
-	authenticationv1 "k8s.io/api/authentication/v1"
-	certificatesv1 "k8s.io/api/certificates/v1"
-	coordinationv1 "k8s.io/api/coordination/v1"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	apimachineryType "k8s.io/apimachinery/pkg/types"
-	k8sinformer "k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
-	coordinationlisters "k8s.io/client-go/listers/coordination/v1"
-	corelisters "k8s.io/client-go/listers/core/v1"
-	"k8s.io/klog/v2"
 
 	beehiveContext "github.com/kubeedge/beehive/pkg/core/context"
 	"github.com/kubeedge/beehive/pkg/core/model"
@@ -63,6 +51,18 @@ import (
 	rulesv1 "github.com/kubeedge/kubeedge/pkg/apis/rules/v1"
 	crdClientset "github.com/kubeedge/kubeedge/pkg/client/clientset/versioned"
 	"github.com/kubeedge/kubeedge/pkg/metaserver/util"
+	authenticationv1 "k8s.io/api/authentication/v1"
+	certificatesv1 "k8s.io/api/certificates/v1"
+	coordinationv1 "k8s.io/api/coordination/v1"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	apimachineryType "k8s.io/apimachinery/pkg/types"
+	k8sinformer "k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	coordinationlisters "k8s.io/client-go/listers/coordination/v1"
+	corelisters "k8s.io/client-go/listers/core/v1"
 )
 
 // SortedContainerStatuses define A type to help sort container statuses based on container names.
@@ -100,6 +100,7 @@ type UpstreamController struct {
 	config v1alpha1.EdgeController
 
 	// message channel
+	eventChan                      chan model.Message
 	nodeStatusChan                 chan model.Message
 	podStatusChan                  chan model.Message
 	secretChan                     chan model.Message
@@ -136,6 +137,10 @@ func (uc *UpstreamController) Start() error {
 
 	for i := 0; i < int(uc.config.Load.UpdateNodeStatusWorkers); i++ {
 		go uc.updateNodeStatus()
+	}
+	for i := 0; i < int(uc.config.Load.HandleEventWorkers); i++ {
+		klog.Infof("%d of %d built, eventchan len is %d", i+1, int(uc.config.Load.HandleEventWorkers), cap(uc.eventChan))
+		go uc.processEvent()
 	}
 	for i := 0; i < int(uc.config.Load.UpdatePodStatusWorkers); i++ {
 		go uc.updatePodStatus()
@@ -224,6 +229,10 @@ func (uc *UpstreamController) dispatchMessage() {
 			uc.nodeStatusChan <- msg
 		case model.ResourceTypePodStatus:
 			uc.podStatusChan <- msg
+		case model.ResourceTypeEvent:
+			klog.Infof("ready to send a event to chan: %v", msg.GetResource())
+			uc.eventChan <- msg
+			klog.Infof("sent a event to chan: %v", msg.GetResource())
 		case model.ResourceTypeConfigmap:
 			uc.configMapChan <- msg
 		case model.ResourceTypeSecret:
@@ -343,6 +352,60 @@ func (uc *UpstreamController) podStatusResponse(msg model.Message, content inter
 		klog.Warningf("Send message failed: %s, operation: %s, resource: %s", err, resMsg.GetOperation(), resMsg.GetResource())
 	} else {
 		klog.V(4).Infof("Send message successfully, operation: %s, resource: %s", resMsg.GetOperation(), resMsg.GetResource())
+	}
+}
+
+type PatchEventInfo struct {
+	Event     *v1.Event `json:"event"`
+	PatchData string    `json:"patchData"`
+}
+
+func (uc *UpstreamController) processEvent() {
+	select {
+	case <-beehiveContext.Done():
+		klog.Warning("stop processEvent")
+		return
+	case msg := <-uc.eventChan:
+		klog.Infof("event message: %s, operation is: %s, and resource is: %s", msg.GetID(), msg.GetOperation(), msg.GetResource())
+		var err error
+		switch msg.GetOperation() {
+		case model.InsertOperation:
+			event, ok := msg.Content.(v1.Event)
+			if !ok {
+				klog.Errorf("Assertion type event err, msg: %v", msg)
+				return
+			}
+			_, err = uc.kubeClient.CoreV1().Events("").CreateWithEventNamespace(&event)
+			if err != nil {
+				klog.Errorf("CreateWithEventNamespace error, event: %v, err: %v", event, err)
+			}
+		case model.UpdateOperation:
+			event, ok := msg.Content.(v1.Event)
+			if !ok {
+				klog.Errorf("Assertion type event err, msg: %v", msg)
+				return
+			}
+			_, err = uc.kubeClient.CoreV1().Events("").UpdateWithEventNamespace(&event)
+			if err != nil {
+				klog.Errorf("UpdateWithEventNamespace error, event: %v, err: %v", event, err)
+			}
+		case model.PatchOperation:
+			klog.Infof("patch msg content is: %#v", msg.Content)
+			data, ok := msg.Content.(string)
+			if !ok {
+				klog.Errorf("Assertion type patchEvent msg string: %v, real type is %v", err, reflect.TypeOf(msg.Content))
+				return
+			}
+			patchInfo := PatchEventInfo{}
+			err = json.Unmarshal([]byte(data), &patchInfo)
+			if err != nil {
+				klog.Errorf("Error marshaling patchEvent msg content: %v", err)
+			}
+			_, err = uc.kubeClient.CoreV1().Events("").PatchWithEventNamespace(patchInfo.Event, []byte(patchInfo.PatchData))
+			if err != nil {
+				klog.Errorf("PatchWithEventNamespace error, event: %v, err: %v", patchInfo.Event, err)
+			}
+		}
 	}
 }
 
@@ -1481,6 +1544,7 @@ func NewUpstreamController(config *v1alpha1.EdgeController, factory k8sinformer.
 
 	uc.nodeStatusChan = make(chan model.Message, config.Buffer.UpdateNodeStatus)
 	uc.podStatusChan = make(chan model.Message, config.Buffer.UpdatePodStatus)
+	uc.eventChan = make(chan model.Message, config.Buffer.HandleEvent)
 	uc.configMapChan = make(chan model.Message, config.Buffer.QueryConfigMap)
 	uc.secretChan = make(chan model.Message, config.Buffer.QuerySecret)
 	uc.serviceAccountTokenChan = make(chan model.Message, config.Buffer.ServiceAccountToken)
