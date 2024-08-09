@@ -118,5 +118,3 @@ func (e *events) PatchWithEventNamespace(event *corev1.Event, data []byte) (*cor
 	//}
 	return event, nil
 }
-
-// Todo 改3个函数，看edgehub
