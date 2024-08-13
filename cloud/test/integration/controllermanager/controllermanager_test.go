@@ -1417,11 +1417,11 @@ var _ = Describe("Test EdgeApplication Controller", func() {
 })
 
 func labelsDeepCopy(src map[string]string) map[string]string {
-	labelCopy := map[string]string{}
+	copy := map[string]string{}
 	for k, v := range src {
-		labelCopy[k] = v
+		copy[k] = v
 	}
-	return labelCopy
+	return copy
 }
 
 func beInMembership(nodeName string, nodeGroupName string) bool {

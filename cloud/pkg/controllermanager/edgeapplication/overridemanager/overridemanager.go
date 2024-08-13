@@ -11,14 +11,14 @@ import (
 	appsv1alpha1 "github.com/kubeedge/kubeedge/pkg/apis/apps/v1alpha1"
 )
 
-// overrideOption defines the JSONPatch operator
+// overrideOption define the JSONPatch operator
 type overrideOption struct {
 	Op    string      `json:"op"`
 	Path  string      `json:"path"`
 	Value interface{} `json:"value,omitempty"`
 }
 
-// Overrider manages override operation
+// OverrideManager manages override operation
 type Overrider interface {
 	ApplyOverrides(rawObjs *unstructured.Unstructured, overrideInfo OverriderInfo) error
 }
