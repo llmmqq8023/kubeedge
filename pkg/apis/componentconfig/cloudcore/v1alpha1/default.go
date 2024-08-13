@@ -149,6 +149,7 @@ func getDefaultEdgeControllerLoad(nodeLimit int32) *EdgeControllerLoad {
 		UpdatePodStatusWorkers:            constants.DefaultUpdatePodStatusWorkers,
 		UpdateNodeStatusWorkers:           constants.DefaultUpdateNodeStatusWorkers,
 		QueryConfigMapWorkers:             constants.DefaultQueryConfigMapWorkers,
+		HandleEventWorkers:                constants.DefaultProcessEventWorkers,
 		QuerySecretWorkers:                constants.DefaultQuerySecretWorkers,
 		QueryPersistentVolumeWorkers:      constants.DefaultQueryPersistentVolumeWorkers,
 		QueryPersistentVolumeClaimWorkers: constants.DefaultQueryPersistentVolumeClaimWorkers,
@@ -172,6 +173,7 @@ func getDefaultEdgeControllerLoad(nodeLimit int32) *EdgeControllerLoad {
 func getDefaultEdgeControllerBuffer(nodeLimit int32) *EdgeControllerBuffer {
 	return &EdgeControllerBuffer{
 		UpdatePodStatus:            constants.DefaultUpdatePodStatusBuffer,
+		HandleEvent:                constants.DefaultProcessEventBuffer,
 		UpdateNodeStatus:           constants.DefaultUpdateNodeStatusBuffer,
 		QueryConfigMap:             constants.DefaultQueryConfigMapBuffer,
 		QuerySecret:                constants.DefaultQuerySecretBuffer,
