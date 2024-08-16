@@ -103,10 +103,19 @@ func (e *events) UpdateWithEventNamespace(event *corev1.Event) (*corev1.Event, e
 	return event, nil
 }
 
+type PatchInfo struct {
+	Event *corev1.Event `json:"event"`
+	Data  string        `json:"patchData"`
+}
+
 func (e *events) PatchWithEventNamespace(event *corev1.Event, data []byte) (*corev1.Event, error) {
-	klog.Infof("666666: Patch event with ns: %+v and data: %s", event, string(data))
+	klog.Infof("666666: Patch event with ns: %+v and data: %s", event, data)
+	msgData := PatchInfo{
+		Event: event,
+		Data:  string(data),
+	}
 	resource := fmt.Sprintf("%s/%s/%s", e.namespace, model.ResourceTypeEvent, event.Name)
-	eventMsg := message.BuildMsg(modules.MetaGroup, "", modules.EdgedModuleName, resource, model.PatchOperation, string(data))
+	eventMsg := message.BuildMsg(modules.MetaGroup, "", modules.EdgedModuleName, resource, model.PatchOperation, msgData)
 	e.send.Send(eventMsg)
 	//if err != nil {
 	//	return nil, fmt.Errorf("patch event failed, err: %v", err)

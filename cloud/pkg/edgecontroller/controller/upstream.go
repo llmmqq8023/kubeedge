@@ -286,58 +286,67 @@ func (uc *UpstreamController) dispatchMessage() {
 	}
 }
 
-type PatchEventInfo struct {
-	Event     *v1.Event `json:"event"`
-	PatchData string    `json:"patchData"`
+type PatchInfo struct {
+	Event *v1.Event `json:"event"`
+	Data  string    `json:"patchData"`
 }
 
 func (uc *UpstreamController) processEvent() {
-	select {
-	case <-beehiveContext.Done():
-		klog.Warning("stop processEvent")
-		return
-	case msg := <-uc.eventChan:
-		klog.Infof("event message: %s, operation is: %s, and resource is: %s", msg.GetID(), msg.GetOperation(), msg.GetResource())
-		return
-		//var err error
-		//switch msg.GetOperation() {
-		//case model.InsertOperation:
-		//	event, ok := msg.Content.(v1.Event)
-		//	if !ok {
-		//		klog.Errorf("Assertion type event err, msg: %v", msg)
-		//		return
-		//	}
-		//	_, err = uc.kubeClient.CoreV1().Events("").CreateWithEventNamespace(&event)
-		//	if err != nil {
-		//		klog.Errorf("CreateWithEventNamespace error, event: %v, err: %v", event, err)
-		//	}
-		//case model.UpdateOperation:
-		//	event, ok := msg.Content.(v1.Event)
-		//	if !ok {
-		//		klog.Errorf("Assertion type event err, msg: %v", msg)
-		//		return
-		//	}
-		//	_, err = uc.kubeClient.CoreV1().Events("").UpdateWithEventNamespace(&event)
-		//	if err != nil {
-		//		klog.Errorf("UpdateWithEventNamespace error, event: %v, err: %v", event, err)
-		//	}
-		//case model.PatchOperation:
-		//	klog.Infof("patch msg content is: %#v", msg.Content)
-		//	data, ok := msg.Content.(string)
-		//	if !ok {
-		//		klog.Errorf("Assertion type patchEvent msg string: %v, real type is %v", err, reflect.TypeOf(msg.Content))
-		//		return
-		//	}
-		//	patchInfo := PatchEventInfo{}
-		//	err = json.Unmarshal([]byte(data), &patchInfo)
-		//	if err != nil {
-		//		klog.Errorf("Error marshaling patchEvent msg content: %v", err)
-		//	}
-		//	_, err = uc.kubeClient.CoreV1().Events("").PatchWithEventNamespace(patchInfo.Event, []byte(patchInfo.PatchData))
-		//	if err != nil {
-		//		klog.Errorf("PatchWithEventNamespace error, event: %v, err: %v", patchInfo.Event, err)
-		//	}
-		//}
+	for {
+		klog.Infof("777777: in func processevent")
+		select {
+		case <-beehiveContext.Done():
+			klog.Warning("stop processEvent")
+			return
+		case msg := <-uc.eventChan:
+			klog.Infof("777777: event message: %s, operation is: %s, and resource is: %s", msg.GetID(), msg.GetOperation(), msg.GetResource())
+			data, err := msg.GetContentData()
+			if err != nil {
+				klog.Errorf("Get event data err: %v", err)
+				continue
+			}
+			switch msg.GetOperation() {
+			case model.InsertOperation:
+				evt := &v1.Event{}
+				err = json.Unmarshal(data, evt)
+				if err != nil {
+					klog.Errorf("Error marshaling createEvent msg content %v", err)
+					continue
+				}
+				_, err = uc.kubeClient.CoreV1().Events(evt.Namespace).CreateWithEventNamespace(evt)
+				if err != nil {
+					klog.Errorf("CreateWithEventNamespace error, event: %v, err: %v", evt, err)
+					continue
+				}
+				klog.Infof("Create event successfully")
+			case model.UpdateOperation:
+				evt := &v1.Event{}
+				err = json.Unmarshal(data, evt)
+				if err != nil {
+					klog.Errorf("Error marshaling updateEvent msg content %v", err)
+					continue
+				}
+				_, err = uc.kubeClient.CoreV1().Events(evt.Namespace).UpdateWithEventNamespace(evt)
+				if err != nil {
+					klog.Errorf("UpdateWithEventNamespace error, event: %v, err: %v", evt, err)
+					continue
+				}
+				klog.Infof("Update event successfully")
+			case model.PatchOperation:
+				patchInfo := &PatchInfo{}
+				err = json.Unmarshal(data, patchInfo)
+				if err != nil {
+					klog.Errorf("Error marshaling patchEvent msg content: %v", err)
+					continue
+				}
+				_, err = uc.kubeClient.CoreV1().Events(patchInfo.Event.Namespace).PatchWithEventNamespace(patchInfo.Event, []byte(patchInfo.Data))
+				if err != nil {
+					klog.Errorf("PatchWithEventNamespace error, event: %v, err: %v", patchInfo.Event, err)
+					continue
+				}
+				klog.Infof("Patch event successfully")
+			}
+		}
 	}
 }
 
