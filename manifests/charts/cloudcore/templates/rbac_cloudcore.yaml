@@ -6,13 +6,13 @@ metadata:
     rbac/aggregate-to-cloudcore: "true"
 rules:
 - apiGroups: [""]
-  resources: ["nodes", "nodes/status", "serviceaccounts/token", "configmaps", "pods", "pods/status", "secrets", "endpoints", "services", "persistentvolumes", "persistentvolumeclaims"]
+  resources: ["events", "nodes", "nodes/status", "serviceaccounts/token", "configmaps", "pods", "pods/status", "secrets", "endpoints", "services", "persistentvolumes", "persistentvolumeclaims"]
   verbs: ["get", "list", "watch", "create", "update"]
 - apiGroups: [""]
   resources: ["namespaces"]
   verbs: ["get", "create", "list", "watch"]
 - apiGroups: [""]
-  resources: ["nodes", "nodes/status", "pods/status"]
+  resources: ["events", "nodes", "nodes/status", "pods/status"]
   verbs: ["patch"]
 - apiGroups: [""]
   resources: ["pods", "configmaps"]
