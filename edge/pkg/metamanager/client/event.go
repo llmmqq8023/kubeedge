@@ -9,7 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	appcorev1 "k8s.io/client-go/applyconfigurations/core/v1"
-	"k8s.io/klog/v2"
 )
 
 type EventsGetter interface {
@@ -42,64 +41,40 @@ func newEvents(namespace string, s SendInterface) *events {
 }
 
 func (e *events) Create(event *corev1.Event, opts metav1.CreateOptions) (*corev1.Event, error) {
-	klog.Infof("Create event %+v with options %+v", event, opts)
 	return event, nil
 }
 
 func (e *events) Update(event *corev1.Event, opts metav1.UpdateOptions) (*corev1.Event, error) {
-	klog.Infof("Update event %+v with options %+v", event, opts)
 	return event, nil
 }
 
 func (e *events) Patch(name string, pt types.PatchType, data []byte, opts metav1.PatchOptions) (*corev1.Event, error) {
-	klog.Infof("Patch event %s with patchtype %s, data %s and options %+v", name, pt, string(data), opts)
 	return &corev1.Event{}, nil
 }
 
 func (e *events) Delete(name string, opts metav1.DeleteOptions) error {
-	klog.Infof("Delete event %s with options %+v", name, opts)
 	return nil
 }
 
 func (e *events) Get(name string, opts metav1.GetOptions) (*corev1.Event, error) {
-	klog.Infof("Get event %s with option %+v", name, opts)
 	return &corev1.Event{}, nil
 }
 
 func (e *events) Apply(event *appcorev1.EventApplyConfiguration, opts metav1.ApplyOptions) (*corev1.Event, error) {
-	klog.Infof("Apply event %+v with options %+v", event, opts)
 	return &corev1.Event{}, nil
 }
 
 func (e *events) CreateWithEventNamespace(event *corev1.Event) (*corev1.Event, error) {
-	klog.Infof("666666: Create event with ns: %+v", event)
 	resource := fmt.Sprintf("%s/%s/%s", e.namespace, model.ResourceTypeEvent, event.Name)
 	eventMsg := message.BuildMsg(modules.MetaGroup, "", modules.EdgedModuleName, resource, model.InsertOperation, event)
 	e.send.Send(eventMsg)
-	//if err != nil {
-	//	return nil, fmt.Errorf("create event failed, err: %v", err)
-	//}
-	//
-	//_, err = resp.GetContentData()
-	//if err != nil {
-	//	return nil, fmt.Errorf("parse event failed, err: %v", err)
-	//}
 	return event, nil
 }
 
 func (e *events) UpdateWithEventNamespace(event *corev1.Event) (*corev1.Event, error) {
-	klog.Infof("666666: Update event with ns: %+v", event)
 	resource := fmt.Sprintf("%s/%s/%s", e.namespace, model.ResourceTypeEvent, event.Name)
 	eventMsg := message.BuildMsg(modules.MetaGroup, "", modules.EdgedModuleName, resource, model.UpdateOperation, event)
 	e.send.Send(eventMsg)
-	//if err != nil {
-	//	return nil, fmt.Errorf("update event failed, err: %v", err)
-	//}
-	//
-	//_, err = resp.GetContentData()
-	//if err != nil {
-	//	return nil, fmt.Errorf("parse event failed, err: %v", err)
-	//}
 	return event, nil
 }
 
@@ -109,7 +84,6 @@ type PatchInfo struct {
 }
 
 func (e *events) PatchWithEventNamespace(event *corev1.Event, data []byte) (*corev1.Event, error) {
-	klog.Infof("666666: Patch event with ns: %+v and data: %s", event, data)
 	msgData := PatchInfo{
 		Event: event,
 		Data:  string(data),
@@ -117,13 +91,5 @@ func (e *events) PatchWithEventNamespace(event *corev1.Event, data []byte) (*cor
 	resource := fmt.Sprintf("%s/%s/%s", e.namespace, model.ResourceTypeEvent, event.Name)
 	eventMsg := message.BuildMsg(modules.MetaGroup, "", modules.EdgedModuleName, resource, model.PatchOperation, msgData)
 	e.send.Send(eventMsg)
-	//if err != nil {
-	//	return nil, fmt.Errorf("patch event failed, err: %v", err)
-	//}
-	//
-	//_, err = resp.GetContentData()
-	//if err != nil {
-	//	return nil, fmt.Errorf("parse event failed, err: %v", err)
-	//}
 	return event, nil
 }

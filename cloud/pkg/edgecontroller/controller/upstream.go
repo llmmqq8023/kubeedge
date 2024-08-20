@@ -139,7 +139,6 @@ func (uc *UpstreamController) Start() error {
 		go uc.updateNodeStatus()
 	}
 	for i := 0; i < int(uc.config.Load.HandleEventWorkers); i++ {
-		klog.Infof("%d of %d built, eventchan len is %d", i+1, int(uc.config.Load.HandleEventWorkers), cap(uc.eventChan))
 		go uc.processEvent()
 	}
 	for i := 0; i < int(uc.config.Load.UpdatePodStatusWorkers); i++ {
@@ -230,9 +229,7 @@ func (uc *UpstreamController) dispatchMessage() {
 		case model.ResourceTypePodStatus:
 			uc.podStatusChan <- msg
 		case model.ResourceTypeEvent:
-			klog.Infof("ready to send a event to chan: %v", msg.GetResource())
 			uc.eventChan <- msg
-			klog.Infof("sent a event to chan: %v", msg.GetResource())
 		case model.ResourceTypeConfigmap:
 			uc.configMapChan <- msg
 		case model.ResourceTypeSecret:
@@ -293,13 +290,11 @@ type PatchInfo struct {
 
 func (uc *UpstreamController) processEvent() {
 	for {
-		klog.Infof("777777: in func processevent")
 		select {
 		case <-beehiveContext.Done():
 			klog.Warning("stop processEvent")
 			return
 		case msg := <-uc.eventChan:
-			klog.Infof("777777: event message: %s, operation is: %s, and resource is: %s", msg.GetID(), msg.GetOperation(), msg.GetResource())
 			data, err := msg.GetContentData()
 			if err != nil {
 				klog.Errorf("Get event data err: %v", err)
@@ -318,7 +313,6 @@ func (uc *UpstreamController) processEvent() {
 					klog.Errorf("CreateWithEventNamespace error, event: %v, err: %v", evt, err)
 					continue
 				}
-				klog.Infof("Create event successfully")
 			case model.UpdateOperation:
 				evt := &v1.Event{}
 				err = json.Unmarshal(data, evt)
@@ -331,7 +325,6 @@ func (uc *UpstreamController) processEvent() {
 					klog.Errorf("UpdateWithEventNamespace error, event: %v, err: %v", evt, err)
 					continue
 				}
-				klog.Infof("Update event successfully")
 			case model.PatchOperation:
 				patchInfo := &PatchInfo{}
 				err = json.Unmarshal(data, patchInfo)
@@ -344,7 +337,6 @@ func (uc *UpstreamController) processEvent() {
 					klog.Errorf("PatchWithEventNamespace error, event: %v, err: %v", patchInfo.Event, err)
 					continue
 				}
-				klog.Infof("Patch event successfully")
 			}
 		}
 	}
@@ -401,7 +393,6 @@ func (uc *UpstreamController) updateRuleStatus() {
 			if err != nil {
 				klog.Warningf("message: %s process failure, update ruleStatus failed with error: %s, namespace: %s, name: %s", msg.GetID(), err, namespace, ruleID)
 			} else {
-				klog.Infof("UpdateRulestatus successfully!")
 			}
 		}
 	}

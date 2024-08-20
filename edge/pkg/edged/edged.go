@@ -314,7 +314,6 @@ func MakeKubeClientBridge(kubeletDeps *kubelet.Dependencies) {
 
 	kubeletDeps.KubeClient = client
 	kubeletDeps.EventClient = client.CoreV1() // nil
-	klog.Infof("EventClient assigned. ")
 	kubeletDeps.HeartbeatClient = client
 }
 
